@@ -523,7 +523,7 @@
 
 <div class="app">
   <div class="app-header">
-    <div class="app-version">Ver. 3.8</div>
+    <div class="app-version">Ver. 3.9</div>
     <div class="app-eyebrow">Yozeum Wedding Point Tracker</div>
     <div class="app-title">요즘웨딩 포인트 캘린더</div>
     <div class="app-sub" id="wpc-header-range">기간을 설정해주세요</div>
@@ -873,6 +873,7 @@ window.fb = {
     clearTimeout(customItemsSaveTimer);
     customItemsSaveTimer = setTimeout(()=>{
       storageSet('custom-items', JSON.stringify(customItems));
+      customItemsSaveTimer = null;
     }, 600);
   }
   async function saveRange(start, end){
@@ -886,6 +887,7 @@ window.fb = {
     clearTimeout(totalStatusSaveTimer);
     totalStatusSaveTimer = setTimeout(()=>{
       storageSet('total-status', JSON.stringify(totalStatus));
+      totalStatusSaveTimer = null;
     }, 600);
   }
 
@@ -924,8 +926,36 @@ window.fb = {
     clearTimeout(monthSaveTimers[key]);
     monthSaveTimers[key] = setTimeout(()=>{
       storageSet('monthly:'+key, JSON.stringify(monthlyData[key]||{}));
+      monthSaveTimers[key] = null;
     }, 600);
   }
+
+  /* Debounced saves above only fire after 600ms of quiet. If the tab is
+     closed or switched away before that timer fires, the change would be
+     lost — so force any pending saves out immediately when that happens. */
+  function flushPendingSaves(){
+    if(totalStatusSaveTimer){
+      clearTimeout(totalStatusSaveTimer);
+      totalStatusSaveTimer = null;
+      storageSet('total-status', JSON.stringify(totalStatus));
+    }
+    if(customItemsSaveTimer){
+      clearTimeout(customItemsSaveTimer);
+      customItemsSaveTimer = null;
+      storageSet('custom-items', JSON.stringify(customItems));
+    }
+    Object.keys(monthSaveTimers).forEach(key=>{
+      if(monthSaveTimers[key]){
+        clearTimeout(monthSaveTimers[key]);
+        monthSaveTimers[key] = null;
+        storageSet('monthly:'+key, JSON.stringify(monthlyData[key]||{}));
+      }
+    });
+  }
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'hidden') flushPendingSaves();
+  });
+  window.addEventListener('pagehide', flushPendingSaves);
 
   function parsePoints(str){
     const cleaned = String(str).replace(/,/g,'');
@@ -1190,7 +1220,7 @@ window.fb = {
         return;
       }
       const repeatable = repeatableInput.checked;
-      const id = 'custom-' + Date.now();
+      const id = 'custom-' + Date.now() + '-' + Math.random().toString(36).slice(2,7);
       const item = repeatable
         ? { id, name, points: amount.toLocaleString()+'P/건', limit:'직접 추가한 항목', type:'counter', unit:amount, custom:true }
         : { id, name, points: amount.toLocaleString()+'P', limit:'직접 추가한 항목', custom:true };
@@ -1243,6 +1273,7 @@ window.fb = {
     });
     nav.addEventListener('click', (e)=>{
       if(moved){ e.stopPropagation(); e.preventDefault(); }
+      moved = false;
     }, true);
   }
 
