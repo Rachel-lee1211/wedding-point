@@ -164,6 +164,49 @@
   .wpc-item-name{ font-size:13.5px; font-weight:600; }
   .wpc-item-meta{ font-size:11.5px; color:var(--plum-soft); margin-top:2px; }
   .wpc-item-points{ font-size:11px; color:var(--gold); margin-top:3px; font-weight:600; }
+  .wpc-item-remove{
+    flex:none;
+    background:none;
+    border:none;
+    color:var(--plum-soft);
+    font-size:11.5px;
+    text-decoration:underline;
+    cursor:pointer;
+    padding:2px 0 0;
+    font-family:"NanumSquare","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  }
+
+  /* ---- Custom item add form ---- */
+  .wpc-custom-add{
+    background:var(--card);
+    border:1px dashed var(--line);
+    border-radius:12px;
+    padding:14px;
+    margin-top:14px;
+  }
+  .wpc-custom-add-title{ font-size:13px; font-weight:700; margin-bottom:4px; }
+  .wpc-custom-add-desc{ font-size:11.5px; color:var(--plum-soft); margin-bottom:12px; line-height:1.5; }
+  .wpc-custom-add-row{ display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+  .wpc-custom-add input[type="text"],
+  .wpc-custom-add input[type="number"]{
+    font-family:"NanumSquare","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    font-size:13px;
+    padding:10px 12px;
+    border-radius:9px;
+    border:1px solid var(--line);
+    background:var(--ivory);
+    color:var(--plum);
+    width:100%;
+  }
+  .wpc-custom-add-check{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:12px;
+    color:var(--plum-soft);
+    margin-bottom:12px;
+  }
+  .wpc-custom-add-check input{ width:auto; }
 
   /* ---- Month nav + panel ---- */
   .wpc-month-nav{
@@ -480,7 +523,7 @@
 
 <div class="app">
   <div class="app-header">
-    <div class="app-version">Ver. 3.7</div>
+    <div class="app-version">Ver. 3.8</div>
     <div class="app-eyebrow">Yozeum Wedding Point Tracker</div>
     <div class="app-title">요즘웨딩 포인트 캘린더</div>
     <div class="app-sub" id="wpc-header-range">기간을 설정해주세요</div>
@@ -494,6 +537,20 @@
       <div class="wpc-tally" id="wpc-total-tally">0 / 0 신청완료</div>
       <div id="wpc-total-grid" class="wpc-total-grid">
         <div class="wpc-loading">불러오는 중…</div>
+      </div>
+
+      <div class="wpc-custom-add">
+        <div class="wpc-custom-add-title">카페 이벤트 등 직접 추가</div>
+        <div class="wpc-custom-add-desc">공식 가이드에 없는 카페 이벤트성 포인트를 직접 추가해서 관리하세요.</div>
+        <div class="wpc-custom-add-row">
+          <input type="text" id="wpc-custom-name" placeholder="항목 이름 (예: 8월 댓글 이벤트)">
+          <input type="number" id="wpc-custom-points" placeholder="포인트 (예: 3000)" min="0" step="1">
+        </div>
+        <label class="wpc-custom-add-check">
+          <input type="checkbox" id="wpc-custom-repeatable">
+          반복 가능한 항목이에요 (횟수로 카운트)
+        </label>
+        <button class="wpc-setup-btn" id="wpc-custom-add-btn">추가하기</button>
       </div>
     </div>
 
@@ -590,10 +647,10 @@ window.fb = {
   onAuthChange: (cb)=>{ onAuthStateChanged(fbAuth, cb); },
   getDocValue: async (uid, key)=>{
     try{
-      if(key === 'calendar-range' || key === 'total-status'){
+      if(key === 'calendar-range' || key === 'total-status' || key === 'custom-items'){
         const snap = await getDoc(stateDocRef(uid));
         if(!snap.exists()) return null;
-        const field = key === 'calendar-range' ? 'calendarRange' : 'totalStatus';
+        const field = key === 'calendar-range' ? 'calendarRange' : key === 'total-status' ? 'totalStatus' : 'customItems';
         const val = snap.data()[field];
         return val ? JSON.stringify(val) : null;
       }
@@ -612,6 +669,8 @@ window.fb = {
         await setDoc(stateDocRef(uid), { calendarRange: parsed }, { merge:true });
       }else if(key === 'total-status'){
         await setDoc(stateDocRef(uid), { totalStatus: parsed }, { merge:true });
+      }else if(key === 'custom-items'){
+        await setDoc(stateDocRef(uid), { customItems: parsed }, { merge:true });
       }else if(key.startsWith('monthly:')){
         const monthKey = key.slice('monthly:'.length);
         await setDoc(monthDocRef(uid, monthKey), parsed);
@@ -627,10 +686,10 @@ window.fb = {
   getState: async (uid)=>{
     try{
       const snap = await getDoc(stateDocRef(uid));
-      if(!snap.exists()) return { calendarRange:null, totalStatus:null };
+      if(!snap.exists()) return { calendarRange:null, totalStatus:null, customItems:null };
       const d = snap.data();
-      return { calendarRange: d.calendarRange || null, totalStatus: d.totalStatus || null };
-    }catch(e){ return { calendarRange:null, totalStatus:null }; }
+      return { calendarRange: d.calendarRange || null, totalStatus: d.totalStatus || null, customItems: d.customItems || null };
+    }catch(e){ return { calendarRange:null, totalStatus:null, customItems:null }; }
   },
   listMonthEntries: async (uid)=>{
     try{
@@ -741,6 +800,7 @@ window.fb = {
   let calendarRange = null; // {start, end}
 
   let totalStatus = {};
+  let customItems = [];
   let monthlyData = {};
   let activeMonth = null;
 
@@ -797,13 +857,23 @@ window.fb = {
       catch(e){ calendarRange = null; }
       try{ const v = await storageGet('total-status'); totalStatus = v ? JSON.parse(v) : {}; }
       catch(e){ totalStatus = {}; }
+      try{ const v = await storageGet('custom-items'); customItems = v ? JSON.parse(v) : []; }
+      catch(e){ customItems = []; }
       return;
     }
     try{
       const state = await window.fb.getState(userId);
       calendarRange = state.calendarRange || null;
       totalStatus = state.totalStatus || {};
-    }catch(e){ calendarRange = null; totalStatus = {}; }
+      customItems = state.customItems || [];
+    }catch(e){ calendarRange = null; totalStatus = {}; customItems = []; }
+  }
+  let customItemsSaveTimer = null;
+  function saveCustomItems(){
+    clearTimeout(customItemsSaveTimer);
+    customItemsSaveTimer = setTimeout(()=>{
+      storageSet('custom-items', JSON.stringify(customItems));
+    }, 600);
   }
   async function saveRange(start, end){
     calendarRange = {start, end};
@@ -862,10 +932,23 @@ window.fb = {
     const m = cleaned.match(/\d+/);
     return m ? parseInt(m[0], 10) : 0;
   }
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function removeCustomItem(item){
+    if(!confirm(`"${item.name}" 항목을 삭제할까요?`)) return;
+    customItems = customItems.filter(ci=>ci.id!==item.id);
+    delete totalStatus[item.id];
+    saveCustomItems();
+    saveTotalStatus();
+    renderTotalGrid();
+    updateSummary();
+  }
 
   function updateSummary(){
     let sum = 0;
-    totalItems.forEach(item=>{
+    totalItems.concat(customItems).forEach(item=>{
       if(item.type==='counter'){
         sum += (totalStatus[item.id]||0) * item.unit;
       }else if(totalStatus[item.id]){
@@ -884,7 +967,8 @@ window.fb = {
     grid.innerHTML='';
     let done=0;
     let checkableCount=0;
-    totalItems.forEach(item=>{
+    totalItems.concat(customItems).forEach(item=>{
+      const removeBtn = item.custom ? `<button class="wpc-item-remove" data-act="remove">삭제</button>` : '';
       if(item.type==='counter'){
         const count = totalStatus[item.id]||0;
         const card=document.createElement('div');
@@ -892,14 +976,15 @@ window.fb = {
         card.innerHTML = `
           <div class="wpc-check">${count>0?'✓':''}</div>
           <div style="flex:1;">
-            <div class="wpc-item-name">${item.name}</div>
-            <div class="wpc-item-meta">${item.limit}</div>
-            <div class="wpc-item-points">${item.points} · 지금까지 ${(count*item.unit).toLocaleString()}P</div>
+            <div class="wpc-item-name">${escapeHtml(item.name)}</div>
+            <div class="wpc-item-meta">${escapeHtml(item.limit)}</div>
+            <div class="wpc-item-points">${escapeHtml(item.points)} · 지금까지 ${(count*item.unit).toLocaleString()}P</div>
             <div class="wpc-stepper" style="margin-top:8px;">
               <button data-act="minus" ${count<=0?'disabled':''}>−</button>
               <div class="count">${count}건</div>
               <button data-act="plus">+</button>
             </div>
+            ${removeBtn}
           </div>`;
         card.querySelector('[data-act="minus"]').addEventListener('click', async (e)=>{
           e.stopPropagation();
@@ -915,6 +1000,12 @@ window.fb = {
           renderTotalGrid();
           updateSummary();
         });
+        if(item.custom){
+          card.querySelector('[data-act="remove"]').addEventListener('click', (e)=>{
+            e.stopPropagation();
+            removeCustomItem(item);
+          });
+        }
         grid.appendChild(card);
         return;
       }
@@ -927,9 +1018,10 @@ window.fb = {
       card.innerHTML = `
         <div class="wpc-check">${checked?'✓':''}</div>
         <div>
-          <div class="wpc-item-name">${item.name}</div>
-          <div class="wpc-item-meta">${item.limit}</div>
-          <div class="wpc-item-points">${item.points}</div>
+          <div class="wpc-item-name">${escapeHtml(item.name)}</div>
+          <div class="wpc-item-meta">${escapeHtml(item.limit)}</div>
+          <div class="wpc-item-points">${escapeHtml(item.points)}</div>
+          ${removeBtn}
         </div>`;
       card.addEventListener('click', async ()=>{
         totalStatus[item.id] = !totalStatus[item.id];
@@ -937,6 +1029,12 @@ window.fb = {
         renderTotalGrid();
         updateSummary();
       });
+      if(item.custom){
+        card.querySelector('[data-act="remove"]').addEventListener('click', (e)=>{
+          e.stopPropagation();
+          removeCustomItem(item);
+        });
+      }
       grid.appendChild(card);
     });
     document.getElementById('wpc-total-tally').textContent = `${done} / ${checkableCount} 신청완료`;
@@ -1076,6 +1174,36 @@ window.fb = {
     });
   }
 
+  function setupCustomAdd(){
+    document.getElementById('wpc-custom-add-btn').addEventListener('click', async ()=>{
+      const nameInput = document.getElementById('wpc-custom-name');
+      const pointsInput = document.getElementById('wpc-custom-points');
+      const repeatableInput = document.getElementById('wpc-custom-repeatable');
+      const name = nameInput.value.trim();
+      const amount = parseInt(pointsInput.value, 10);
+      if(!name){
+        alert('항목 이름을 입력해주세요.');
+        return;
+      }
+      if(!amount || amount <= 0){
+        alert('포인트를 숫자로 입력해주세요.');
+        return;
+      }
+      const repeatable = repeatableInput.checked;
+      const id = 'custom-' + Date.now();
+      const item = repeatable
+        ? { id, name, points: amount.toLocaleString()+'P/건', limit:'직접 추가한 항목', type:'counter', unit:amount, custom:true }
+        : { id, name, points: amount.toLocaleString()+'P', limit:'직접 추가한 항목', custom:true };
+      customItems.push(item);
+      saveCustomItems();
+      nameInput.value = '';
+      pointsInput.value = '';
+      repeatableInput.checked = false;
+      renderTotalGrid();
+      updateSummary();
+    });
+  }
+
   function setupNav(){
     const btns = document.querySelectorAll('.nav-btn');
     btns.forEach(btn=>{
@@ -1122,6 +1250,7 @@ window.fb = {
     setupNav();
     setupRangeControls();
     setupMonthNavScroll();
+    setupCustomAdd();
     document.getElementById('page-total').classList.add('active');
     await loadState();
     renderTotalGrid();
