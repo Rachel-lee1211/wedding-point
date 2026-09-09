@@ -444,6 +444,27 @@
   .nav-btn .ic{ display:flex; align-items:center; justify-content:center; }
   .nav-btn .ic svg{ width:20px; height:20px; }
   .nav-btn.active{ color:var(--rose-deep); background:#FCEFEF; }
+
+  /* ---- Wide screens: use the extra width instead of staying phone-shaped ---- */
+  @media (min-width:760px){
+    .app{
+      max-width:1080px;
+      height:100vh;
+      box-shadow:none;
+      border-left:1px solid var(--line);
+      border-right:1px solid var(--line);
+    }
+    .app-content{ padding:24px 32px 28px; }
+    .wpc-total-grid{ grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
+    #wpc-hashtag-list{
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(340px, 1fr));
+      gap:12px;
+      align-items:start;
+    }
+    .wpc-hashtag-card{ margin-bottom:0; }
+    .wpc-month-panel{ padding:24px 28px; }
+  }
 </style>
 </head>
 <body>
