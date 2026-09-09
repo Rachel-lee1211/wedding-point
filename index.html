@@ -602,6 +602,20 @@ window.fb = {
       const snap = await getDocs(monthlyCollRef(uid));
       return snap.docs.map(d => 'monthly:'+d.id);
     }catch(e){ return []; }
+  },
+  getState: async (uid)=>{
+    try{
+      const snap = await getDoc(stateDocRef(uid));
+      if(!snap.exists()) return { calendarRange:null, totalStatus:null };
+      const d = snap.data();
+      return { calendarRange: d.calendarRange || null, totalStatus: d.totalStatus || null };
+    }catch(e){ return { calendarRange:null, totalStatus:null }; }
+  },
+  listMonthEntries: async (uid)=>{
+    try{
+      const snap = await getDocs(monthlyCollRef(uid));
+      return snap.docs.map(d => ({ monthKey: d.id, data: d.data() }));
+    }catch(e){ return []; }
   }
 };
 
@@ -754,11 +768,21 @@ window.fb = {
     document.getElementById('wpc-header-range').textContent = formatRangeLabel();
   }
 
-  async function loadRange(){
+  /* loadState() replaces separate calendar-range / total-status reads with
+     a single read, since Firebase stores both fields on the same document. */
+  async function loadState(){
+    if(useClaudeStorage){
+      try{ const v = await storageGet('calendar-range'); calendarRange = v ? JSON.parse(v) : null; }
+      catch(e){ calendarRange = null; }
+      try{ const v = await storageGet('total-status'); totalStatus = v ? JSON.parse(v) : {}; }
+      catch(e){ totalStatus = {}; }
+      return;
+    }
     try{
-      const v = await storageGet('calendar-range');
-      calendarRange = v ? JSON.parse(v) : null;
-    }catch(e){ calendarRange = null; }
+      const state = await window.fb.getState(userId);
+      calendarRange = state.calendarRange || null;
+      totalStatus = state.totalStatus || {};
+    }catch(e){ calendarRange = null; totalStatus = {}; }
   }
   async function saveRange(start, end){
     calendarRange = {start, end};
@@ -766,21 +790,50 @@ window.fb = {
     updateHeaderRange();
   }
 
-  async function loadTotalStatus(){
-    try{ const v = await storageGet('total-status'); totalStatus = v ? JSON.parse(v) : {}; }
-    catch(e){ totalStatus = {}; }
+  let totalStatusSaveTimer = null;
+  function saveTotalStatus(){
+    clearTimeout(totalStatusSaveTimer);
+    totalStatusSaveTimer = setTimeout(()=>{
+      storageSet('total-status', JSON.stringify(totalStatus));
+    }, 600);
   }
-  async function saveTotalStatus(){
-    await storageSet('total-status', JSON.stringify(totalStatus));
+
+  /* preloadAllMonths() fetches every stored month in one request and caches
+     it in monthlyData, so updateSummary() never has to hit storage again. */
+  let monthlyPreloaded = false;
+  async function preloadAllMonths(){
+    if(monthlyPreloaded) return;
+    monthlyPreloaded = true;
+    if(useClaudeStorage){
+      try{
+        const keys = await storageListKeys('monthly:');
+        for(const key of keys){
+          const monthKey = key.replace('monthly:', '');
+          if(!(monthKey in monthlyData)) await loadMonth(monthKey);
+        }
+      }catch(e){ /* no monthly entries saved yet */ }
+      return;
+    }
+    try{
+      const entries = await window.fb.listMonthEntries(userId);
+      entries.forEach(({monthKey, data})=>{
+        if(!(monthKey in monthlyData)) monthlyData[monthKey] = data || {};
+      });
+    }catch(e){ /* no monthly entries saved yet */ }
   }
+
   async function loadMonth(key){
     if(monthlyData[key]) return monthlyData[key];
     try{ const v = await storageGet('monthly:'+key); monthlyData[key] = v ? JSON.parse(v) : {}; }
     catch(e){ monthlyData[key] = {}; }
     return monthlyData[key];
   }
-  async function saveMonth(key){
-    await storageSet('monthly:'+key, JSON.stringify(monthlyData[key]||{}));
+  const monthSaveTimers = {};
+  function saveMonth(key){
+    clearTimeout(monthSaveTimers[key]);
+    monthSaveTimers[key] = setTimeout(()=>{
+      storageSet('monthly:'+key, JSON.stringify(monthlyData[key]||{}));
+    }, 600);
   }
 
   function parsePoints(str){
@@ -789,7 +842,7 @@ window.fb = {
     return m ? parseInt(m[0], 10) : 0;
   }
 
-  async function updateSummary(){
+  function updateSummary(){
     let sum = 0;
     totalItems.forEach(item=>{
       if(item.type==='counter'){
@@ -798,14 +851,9 @@ window.fb = {
         sum += parsePoints(item.points);
       }
     });
-    try{
-      const keys = await storageListKeys('monthly:');
-      for(const key of keys){
-        const monthKey = key.replace('monthly:', '');
-        const data = await loadMonth(monthKey);
-        monthlyItems.forEach(it=>{ sum += (data[it.id]||0) * it.unit; });
-      }
-    }catch(e){ /* no monthly entries saved yet */ }
+    Object.values(monthlyData).forEach(data=>{
+      monthlyItems.forEach(it=>{ sum += (data[it.id]||0) * it.unit; });
+    });
     const el = document.getElementById('wpc-summary-value');
     if(el) el.textContent = sum.toLocaleString()+' P';
   }
@@ -1054,10 +1102,10 @@ window.fb = {
     setupRangeControls();
     setupMonthNavScroll();
     document.getElementById('page-total').classList.add('active');
-    await loadTotalStatus();
+    await loadState();
     renderTotalGrid();
-    await loadRange();
     updateHeaderRange();
+    await preloadAllMonths();
     await renderMonthlyPage();
     renderHashtags();
     updateSummary();
