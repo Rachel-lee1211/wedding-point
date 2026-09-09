@@ -173,8 +173,10 @@
     padding-bottom:10px;
     margin-bottom:16px;
     scrollbar-width:none;
+    cursor:grab;
   }
   .wpc-month-nav::-webkit-scrollbar{ display:none; }
+  .wpc-month-nav.dragging{ cursor:grabbing; user-select:none; }
   .wpc-month-pill{
     flex:none;
     padding:9px 15px;
@@ -457,7 +459,7 @@
 
 <div class="app">
   <div class="app-header">
-    <div class="app-version">Ver. 3.2</div>
+    <div class="app-version">Ver. 3.3</div>
     <div class="app-eyebrow">Yozeum Wedding Point Tracker</div>
     <div class="app-title">요즘웨딩 포인트 캘린더</div>
     <div class="app-sub" id="wpc-header-range">기간을 설정해주세요</div>
@@ -605,6 +607,7 @@ window.fb = {
 
 (function(){
   const totalItems = [
+    {id:'t1-1', name:'내 소개로 웨딩 계약 (추천인)', points:'건별 70,000P', limit:'무제한 · 건별 지급', type:'counter', unit:70000},
     {id:'t3-2b', name:'소개 받아 웨딩 계약', points:'30,000P', limit:'1회'},
     {id:'t2-4', name:'신혼여행지 선정 이유', points:'3,000P', limit:'총 1회'},
     {id:'t2-6', name:'웨딩홀 투어 후기', points:'투어별 2,000P', limit:'웨딩홀 당 1회', type:'counter', unit:2000},
@@ -616,6 +619,8 @@ window.fb = {
     {id:'t3-3a', name:'요즘웨딩 비교후기 (카페)', points:'5,000P', limit:'카페 1회'},
     {id:'t3-3b', name:'요즘웨딩 비교후기 (블로그)', points:'5,000P', limit:'블로그 1회'},
     {id:'t3-3-1', name:'웨딩홀 업체 후기 (계약후기)', points:'5,000P', limit:'1회'},
+    {id:'t3-4-1', name:'스튜디오 업체 후기 (선택 이유)', points:'5,000P', limit:'각 1회 · 총 2회 중'},
+    {id:'t3-4-2', name:'스튜디오 업체 후기 (촬영 후기)', points:'5,000P', limit:'각 1회 · 총 2회 중'},
     {id:'t3-5-1', name:'드레스 후기 (드레스투어/지정후기)', points:'5,000P', limit:'각 1회 · 총 3회 중'},
     {id:'t3-5-2', name:'드레스 후기 (촬영 셀렉·가봉)', points:'5,000P', limit:'각 1회 · 총 3회 중'},
     {id:'t3-5-3', name:'드레스 후기 (본식 셀렉)', points:'5,000P', limit:'각 1회 · 총 3회 중'},
@@ -623,6 +628,17 @@ window.fb = {
     {id:'t3-6-2', name:'메이크업 후기 (촬영 헤메)', points:'5,000P', limit:'각 1회 · 총 4회 중'},
     {id:'t3-6-3', name:'메이크업 후기 (혼주 메이크업)', points:'5,000P', limit:'각 1회 · 총 4회 중'},
     {id:'t3-6-4', name:'메이크업 후기 (본식 헤메)', points:'5,000P', limit:'각 1회 · 총 4회 중'},
+    {id:'t3-7', name:'본식 스냅 업체 후기', points:'5,000P', limit:'1회'},
+    {id:'t3-8-1', name:'한복업체 후기 (투어 상담/계약)', points:'5,000P', limit:'각 1회 · 총 3회 중'},
+    {id:'t3-8-2', name:'한복업체 후기 (신랑/신부 한복)', points:'5,000P', limit:'각 1회 · 총 3회 중'},
+    {id:'t3-8-3', name:'한복업체 후기 (혼주 한복)', points:'5,000P', limit:'각 1회 · 총 3회 중'},
+    {id:'t3-9-1', name:'예물 업체 후기 (상담/계약)', points:'5,000P', limit:'각 1회 · 총 2회 중'},
+    {id:'t3-9-2', name:'예물 업체 후기 (수령)', points:'5,000P', limit:'각 1회 · 총 2회 중'},
+    {id:'t3-10-1', name:'예복 업체 후기 (투어 및 상담/계약)', points:'5,000P', limit:'각 1회 · 총 5회 중'},
+    {id:'t3-10-2', name:'예복 업체 후기 (가봉)', points:'5,000P', limit:'각 1회 · 총 5회 중'},
+    {id:'t3-10-3', name:'예복 업체 후기 (촬영 대여)', points:'5,000P', limit:'각 1회 · 총 5회 중'},
+    {id:'t3-10-4', name:'예복 업체 후기 (본식 예복)', points:'5,000P', limit:'각 1회 · 총 5회 중'},
+    {id:'t3-10-5', name:'예복 업체 후기 (혼주 예복)', points:'5,000P', limit:'각 1회 · 총 5회 중'},
     {id:'t3-11-1', name:'허니문 후기 (상담/계약)', points:'5,000P', limit:'각 1회 · 총 2회 중'},
     {id:'t3-11-2', name:'허니문 후기 (허니문 전체)', points:'5,000P', limit:'각 1회 · 총 2회 중'},
     {id:'t3-12', name:'부케 업체 후기', points:'5,000P', limit:'1회'},
@@ -633,6 +649,8 @@ window.fb = {
     {id:'t3-17', name:'축가/주례/사회/청첩장 후기', points:'5,000P(품목합산)', limit:'1회'},
     {id:'t3-18-1', name:'가전 업체 후기 (계약후기)', points:'5,000P', limit:'각 1회 · 총 2회 중'},
     {id:'t3-18-2', name:'가전 업체 후기 (수령·설치)', points:'5,000P', limit:'각 1회 · 총 2회 중'},
+    {id:'t3-19-1', name:'가구 업체 후기 (상담 및 계약)', points:'5,000P', limit:'각 1회 · 총 2회 중'},
+    {id:'t3-19-2', name:'가구 업체 후기 (수령 및 설치)', points:'5,000P', limit:'각 1회 · 총 2회 중'},
     {id:'t7-1', name:'스냅드레스 방문 후기', points:'1,000P', limit:'총 1회'},
     {id:'t7-2', name:'스냅드레스 이용 후기', points:'2,000P', limit:'총 1회'},
     {id:'t6-1', name:'드레스랜드 후기 포인트', points:'5,000P', limit:'총 1회'},
@@ -649,6 +667,15 @@ window.fb = {
     {id:'m2-5', name:'데이트코스 및 맛집 추천', points:'1,000P/건', cap:4000, max:4, unit:1000},
     {id:'m2-10', name:'웨딩별스타그램 후기', points:'500P/건', cap:4000, max:8, unit:500},
     {id:'m2-11', name:'홈쿡/레시피', points:'500P/건', cap:2500, max:5, unit:500},
+    {id:'m4-1', name:'인스타그램 게시글 업로드', points:'1,000P/건', cap:3000, max:3, unit:1000},
+    {id:'m4-2', name:'인스타그램 댓글', points:'100P/건', cap:2000, max:20, unit:100},
+    {id:'m4-3', name:'인스타그램 스토리 업로드', points:'300P/건', cap:1500, max:5, unit:300},
+    {id:'m4-4', name:'쓰레드 게시글 업로드', points:'1,000P/건', cap:3000, max:3, unit:1000},
+    {id:'m4-5', name:'쓰레드 댓글', points:'100P/건', cap:3000, max:30, unit:100},
+    {id:'m5-1a', name:'블로그 포스팅 (일반)', points:'1,000P/건', cap:5000, max:5, unit:1000},
+    {id:'m5-1b', name:'블로그 포스팅 (인플루언서)', points:'3,000P/건', cap:15000, max:5, unit:3000},
+    {id:'m5-2a', name:'블로그 정보 공유 (일반)', points:'1,000P/건', cap:5000, max:5, unit:1000},
+    {id:'m5-2b', name:'블로그 정보 공유 (인플루언서)', points:'3,000P/건', cap:15000, max:5, unit:3000},
   ];
 
   const hashtagGroups = [
@@ -993,9 +1020,39 @@ window.fb = {
     });
   }
 
+  function setupMonthNavScroll(){
+    const nav = document.getElementById('wpc-month-nav');
+    nav.addEventListener('wheel', (e)=>{
+      if(e.deltaY === 0) return;
+      e.preventDefault();
+      nav.scrollLeft += e.deltaY;
+    }, { passive:false });
+
+    let isDown=false, startX=0, startScroll=0, moved=false;
+    nav.addEventListener('mousedown', (e)=>{
+      isDown = true; moved = false;
+      startX = e.pageX; startScroll = nav.scrollLeft;
+      nav.classList.add('dragging');
+    });
+    window.addEventListener('mousemove', (e)=>{
+      if(!isDown) return;
+      const dx = e.pageX - startX;
+      if(Math.abs(dx) > 5) moved = true;
+      nav.scrollLeft = startScroll - dx;
+    });
+    window.addEventListener('mouseup', ()=>{
+      isDown = false;
+      nav.classList.remove('dragging');
+    });
+    nav.addEventListener('click', (e)=>{
+      if(moved){ e.stopPropagation(); e.preventDefault(); }
+    }, true);
+  }
+
   async function init(){
     setupNav();
     setupRangeControls();
+    setupMonthNavScroll();
     document.getElementById('page-total').classList.add('active');
     await loadTotalStatus();
     renderTotalGrid();
