@@ -52,10 +52,18 @@
   /* ---- Header ---- */
   .app-header{
     flex:none;
+    position:relative;
     background:var(--plum);
     color:#fff;
     padding:calc(env(safe-area-inset-top) + 14px) 20px 14px;
     text-align:center;
+  }
+  .app-version{
+    position:absolute;
+    top:calc(env(safe-area-inset-top) + 8px);
+    right:10px;
+    font-size:9.5px;
+    color:#8a7480;
   }
   .app-eyebrow{
     letter-spacing:.28em;
@@ -449,6 +457,7 @@
 
 <div class="app">
   <div class="app-header">
+    <div class="app-version">Ver. 3.2</div>
     <div class="app-eyebrow">Yozeum Wedding Point Tracker</div>
     <div class="app-title">요즘웨딩 포인트 캘린더</div>
     <div class="app-sub" id="wpc-header-range">기간을 설정해주세요</div>
